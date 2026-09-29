@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: don-phong-307k2
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 24.16.0
+      - key: ROOM_NAME
+        value: Phòng 307K2 - KTX UTB
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: khanhva92@gmail.com
+      - key: SMTP_PASS
+        sync: false
