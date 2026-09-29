@@ -5,18 +5,18 @@ function seedData() {
 
   // 1. Khởi tạo cài đặt mặc định
   const defaultSettings = [
-    { key: 'room_name', value: 'Phòng 307K2 - KTX UTB', description: 'Tên phòng trọ' },
+    { key: 'room_name', value: process.env.ROOM_NAME || 'Phòng 307K2 - KTX UTB', description: 'Tên phòng trọ' },
     { key: 'start_date', value: new Date().toISOString().split('T')[0], description: 'Ngày bắt đầu phân công' },
     { key: 'end_date', value: '2026-12-31', description: 'Ngày kết thúc phân công' },
     { key: 'reminder_time', value: '07:00', description: 'Thời gian gửi email nhắc nhở mỗi sáng' },
-    { key: 'email_mode', value: 'simulation', description: 'Chế độ gửi: simulation (giả lập/test) hoặc smtp (thực tế)' },
-    { key: 'smtp_host', value: 'smtp.gmail.com', description: 'SMTP Host' },
-    { key: 'smtp_port', value: '587', description: 'SMTP Port' },
+    { key: 'email_mode', value: process.env.EMAIL_MODE || 'smtp', description: 'Chế độ gửi: simulation (giả lập/test) hoặc smtp (thực tế)' },
+    { key: 'smtp_host', value: process.env.SMTP_HOST || 'smtp.gmail.com', description: 'SMTP Host' },
+    { key: 'smtp_port', value: process.env.SMTP_PORT || '587', description: 'SMTP Port' },
     { key: 'smtp_secure', value: '0', description: '1 cho 465 SSL, 0 cho 587 TLS' },
-    { key: 'smtp_user', value: '', description: 'Tài khoản Gmail/SMTP' },
-    { key: 'smtp_pass', value: '', description: 'Mật khẩu ứng dụng Gmail (App Password)' },
+    { key: 'smtp_user', value: process.env.SMTP_USER || 'khanhva92@gmail.com', description: 'Tài khoản Gmail/SMTP' },
+    { key: 'smtp_pass', value: process.env.SMTP_PASS || '', description: 'Mật khẩu ứng dụng Gmail (App Password)' },
     { key: 'smtp_from_name', value: 'Ban Quản Lý Phòng 307K2 - KTX UTB', description: 'Tên người gửi email' },
-    { key: 'smtp_from_email', value: 'phong307k2.ktxutb@gmail.com', description: 'Email người gửi' }
+    { key: 'smtp_from_email', value: process.env.SMTP_USER || 'khanhva92@gmail.com', description: 'Email người gửi' }
   ];
 
   const checkSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');

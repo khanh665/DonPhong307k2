@@ -247,7 +247,11 @@ async function handleSendTodayEmail() {
     }).then(r => r.json());
 
     if (res.success) {
-      showToast(`✉️ ${res.message || 'Đã gửi email nhắc việc thành công!'}`, 'success');
+      if (res.mode === 'simulation') {
+        showToast(`✉️ [Giả lập] Đã gửi thông báo tới ${todaySchedule.member_name} (${todaySchedule.member_email})!`, 'info');
+      } else {
+        showToast(`✉️ Đã gửi email thật tới ${todaySchedule.member_name} (${todaySchedule.member_email})!`, 'success');
+      }
       loadDashboard();
     } else {
       showToast(`❌ Gửi thất bại: ${res.error || res.message}`, 'danger');
@@ -286,7 +290,11 @@ async function handleAnonymousPing() {
     }).then(r => r.json());
 
     if (res.success) {
-      showToast(`⚡ Đã gửi lời nhắc ẩn danh tới ${todaySchedule.member_name}!`, 'success');
+      if (res.mode === 'simulation') {
+        showToast(`⚡ [Giả lập] Đã gửi ping tới ${todaySchedule.member_name} (${todaySchedule.member_email})!`, 'info');
+      } else {
+        showToast(`⚡ Đã gửi email thật tới ${todaySchedule.member_name} (${todaySchedule.member_email})!`, 'success');
+      }
       if (res.pingCount !== undefined) {
         updatePingNotice(res.pingCount);
       }
