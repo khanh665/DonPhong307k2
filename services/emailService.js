@@ -120,6 +120,195 @@ class EmailService {
   }
 
   /**
+   * Gửi email qua Brevo REST API (HTTPS port 443 - không bao giờ bị chặn bởi Render)
+   */
+  static async sendEmailViaBrevo({ apiKey, fromName, fromEmail, toEmail, toName, subject, htmlContent }) {
+    const url = 'https://api.brevo.com/v3/smtp/email';
+    const payload = {
+      sender: {
+        name: fromName || 'Ban Quản Lý Phòng 307K2',
+        email: fromEmail
+      },
+      to: [
+        {
+          email: toEmail,
+          name: toName || toEmail
+        }
+      ],
+      subject: subject,
+      htmlContent: htmlContent
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`Brevo API Error (${res.status}): ${data.message || JSON.stringify(data)}`);
+    }
+    return { success: true, mode: 'brevo', messageId: data.messageId };
+  }
+
+  /**
+   * Bộ điều hướng gửi email thông minh (Hỗ trợ Simulation -> Brevo HTTPS 443 -> SMTP 587/465)
+   */
+  static async dispatchEmail({ scheduleId = null, toEmail, toName = '', subject, htmlContent }) {
+    const settings = Setting.getAll();
+    const isSimulation = settings.email_mode === 'simulation';
+
+    // 1. Chế độ giả lập
+    if (isSimulation) {
+      console.log(`[EmailService - SIMULATION] Đang giả lập gửi email tới: ${toEmail}`);
+      EmailLog.create({
+        schedule_id: scheduleId,
+        recipient: toEmail,
+        subject,
+        status: 'sent',
+        preview_content: htmlContent
+      });
+
+      if (scheduleId) {
+        Schedule.updateEmailStatus(scheduleId, 'sent', new Date().toISOString());
+      }
+
+      return {
+        success: true,
+        mode: 'simulation',
+        recipient: toEmail,
+        subject,
+        message: 'Đã gửi thành công (Chế độ Giả lập / Test). Xem lịch sử và preview trực tiếp trên web.'
+      };
+    }
+
+    const brevoApiKey = settings.brevo_api_key || process.env.BREVO_API_KEY;
+    const fromName = settings.smtp_from_name || 'Ban Quản Lý Phòng 307K2';
+    const fromEmail = settings.smtp_from_email || settings.smtp_user || 'khanhva92@gmail.com';
+
+    // 2. Ưu tiên Brevo REST API (Chạy qua HTTPS port 443, vượt mọi giới hạn chặn cổng của Render)
+    if (brevoApiKey) {
+      try {
+        console.log(`[EmailService - Brevo API] Đang gửi tới ${toEmail} qua HTTPS...`);
+        const result = await this.sendEmailViaBrevo({
+          apiKey: brevoApiKey,
+          fromName,
+          fromEmail,
+          toEmail,
+          toName,
+          subject,
+          htmlContent
+        });
+
+        EmailLog.create({
+          schedule_id: scheduleId,
+          recipient: toEmail,
+          subject,
+          status: 'sent',
+          preview_content: htmlContent
+        });
+
+        if (scheduleId) {
+          Schedule.updateEmailStatus(scheduleId, 'sent', new Date().toISOString());
+        }
+
+        return {
+          success: true,
+          mode: 'brevo',
+          messageId: result.messageId,
+          recipient: toEmail,
+          message: `Đã gửi email thật thành công qua Brevo API tới ${toEmail}!`
+        };
+      } catch (err) {
+        console.error('[EmailService - Brevo ERROR]:', err.message);
+        EmailLog.create({
+          schedule_id: scheduleId,
+          recipient: toEmail,
+          subject,
+          status: 'failed',
+          error_message: err.message,
+          preview_content: htmlContent
+        });
+
+        if (scheduleId) {
+          Schedule.updateEmailStatus(scheduleId, 'failed');
+        }
+
+        return { success: false, error: err.message, recipient: toEmail };
+      }
+    }
+
+    // 3. Gửi qua SMTP truyền thống (Gmail, port 587/465)
+    if (!settings.smtp_user || !settings.smtp_pass) {
+      return {
+        success: false,
+        need_config: true,
+        message: 'Chưa cấu hình tài khoản gửi thư! Vui lòng vào Cài đặt nhập Gmail + Mật khẩu ứng dụng hoặc Brevo API Key.'
+      };
+    }
+
+    try {
+      const transporter = this.getTransporter(settings);
+      if (!transporter) throw new Error('Chưa cấu hình tài khoản SMTP');
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent
+      });
+
+      console.log(`[EmailService - SMTP REAL] Đã gửi email tới ${toEmail}: ${info.messageId}`);
+
+      EmailLog.create({
+        schedule_id: scheduleId,
+        recipient: toEmail,
+        subject,
+        status: 'sent',
+        preview_content: htmlContent
+      });
+
+      if (scheduleId) {
+        Schedule.updateEmailStatus(scheduleId, 'sent', new Date().toISOString());
+      }
+
+      return {
+        success: true,
+        mode: 'smtp',
+        messageId: info.messageId,
+        recipient: toEmail,
+        message: `Đã gửi email thật thành công qua SMTP tới ${toEmail}!`
+      };
+    } catch (err) {
+      let friendlyError = err.message;
+      if (err.message.includes('ENETUNREACH') || err.message.includes('timeout') || err.code === 'ETIMEDOUT') {
+        friendlyError = `Render Free chặn cổng SMTP 587 (${err.message}). Khắc phục: Nhập Brevo API Key trong Cài đặt (gửi qua HTTPS 443) hoặc chuyển sang Koyeb.`;
+      }
+      console.error(`[EmailService - SMTP ERROR]:`, friendlyError);
+
+      EmailLog.create({
+        schedule_id: scheduleId,
+        recipient: toEmail,
+        subject,
+        status: 'failed',
+        error_message: friendlyError,
+        preview_content: htmlContent
+      });
+
+      if (scheduleId) {
+        Schedule.updateEmailStatus(scheduleId, 'failed');
+      }
+
+      return { success: false, error: friendlyError, recipient: toEmail };
+    }
+  }
+
+  /**
    * Gửi email tự động nhắc việc theo lịch cụ thể
    */
   static async sendScheduleReminder(schedule, isForce = false) {
@@ -147,84 +336,13 @@ class EmailService {
       roomName: settings.room_name || 'Phòng trọ'
     });
 
-    const isSimulation = settings.email_mode === 'simulation';
-
-    if (isSimulation) {
-      console.log(`[EmailService - SIMULATION] Đang giả lập gửi email tới: ${schedule.member_email}`);
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'sent',
-        preview_content: htmlContent
-      });
-
-      Schedule.updateEmailStatus(schedule.id, 'sent', new Date().toISOString());
-
-      return {
-        success: true,
-        mode: 'simulation',
-        recipient: schedule.member_email,
-        subject,
-        message: `Đã gửi thành công (Chế độ Giả lập / Test). Xem lịch sử và preview trực tiếp trên web.`
-      };
-    }
-
-    // Nếu ở chế độ gửi SMTP thực tế mà chưa điền tài khoản
-    if (!settings.smtp_user || !settings.smtp_pass) {
-      return {
-        success: false,
-        need_config: true,
-        message: 'Chưa cấu hình tài khoản Gmail gửi thư! Vui lòng vào tab Cài đặt nhập Gmail và Mật khẩu ứng dụng (App Password) để gửi email thật.'
-      };
-    }
-
-    // Gửi qua SMTP thực tế
-    try {
-      const transporter = this.getTransporter(settings);
-      if (!transporter) {
-        throw new Error('Chưa cấu hình tài khoản SMTP (User/Pass)');
-      }
-
-      const fromName = settings.smtp_from_name || 'Quản Lý Phòng Trọ';
-      const fromEmail = settings.smtp_from_email || settings.smtp_user;
-
-      const info = await transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: schedule.member_email,
-        subject,
-        html: htmlContent
-      });
-
-      console.log(`[EmailService - SMTP REAL] Đã gửi email tới ${schedule.member_email}: ${info.messageId}`);
-
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'sent',
-        preview_content: htmlContent
-      });
-
-      Schedule.updateEmailStatus(schedule.id, 'sent', new Date().toISOString());
-
-      return { success: true, mode: 'smtp', messageId: info.messageId, recipient: schedule.member_email };
-    } catch (err) {
-      console.error(`[EmailService - SMTP ERROR] Gửi email thất bại:`, err.message);
-
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'failed',
-        error_message: err.message,
-        preview_content: htmlContent
-      });
-
-      Schedule.updateEmailStatus(schedule.id, 'failed');
-
-      return { success: false, error: err.message, recipient: schedule.member_email };
-    }
+    return await this.dispatchEmail({
+      scheduleId: schedule.id,
+      toEmail: schedule.member_email,
+      toName: schedule.member_name,
+      subject,
+      htmlContent
+    });
   }
 
   /**
@@ -243,42 +361,13 @@ class EmailService {
       </div>
     `;
 
-    const isSimulation = settings.email_mode === 'simulation' || !settings.smtp_user || !settings.smtp_pass;
-    if (isSimulation) {
-      EmailLog.create({
-        schedule_id: null,
-        recipient: targetEmail,
-        subject,
-        status: 'sent',
-        preview_content: htmlContent
-      });
-      return { success: true, mode: 'simulation', message: 'Gửi thử nghiệm thành công (Chế độ Giả lập / Test)' };
-    }
-
-    const transporter = this.getTransporter(settings);
-    if (!transporter) {
-      throw new Error('Chưa cấu hình tài khoản SMTP');
-    }
-
-    const fromName = settings.smtp_from_name || 'Quản Lý Phòng Trọ';
-    const fromEmail = settings.smtp_from_email || settings.smtp_user;
-
-    await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to: targetEmail,
+    return await this.dispatchEmail({
+      scheduleId: null,
+      toEmail: targetEmail,
+      toName: 'Thành viên kiểm tra',
       subject,
-      html: htmlContent
+      htmlContent
     });
-
-    EmailLog.create({
-      schedule_id: null,
-      recipient: targetEmail,
-      subject,
-      status: 'sent',
-      preview_content: htmlContent
-    });
-
-    return { success: true, mode: 'smtp', message: 'Gửi email thực tế thành công qua SMTP!' };
   }
 
   /**
@@ -355,68 +444,13 @@ class EmailService {
     </html>
     `;
 
-    const isSimulation = settings.email_mode === 'simulation';
-
-    if (isSimulation) {
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'sent',
-        preview_content: htmlContent
-      });
-
-      return {
-        success: true,
-        mode: 'simulation',
-        recipient: schedule.member_email,
-        subject,
-        message: 'Đã gửi lời nhắc ẩn danh (Chế độ Giả lập). Chuyển sang chế độ SMTP trong Cài đặt để gửi email thật.'
-      };
-    }
-
-    if (!settings.smtp_user || !settings.smtp_pass) {
-      return {
-        success: false,
-        need_config: true,
-        message: 'Chưa cấu hình tài khoản Gmail gửi thư! Vui lòng vào tab Cài đặt nhập Gmail và Mật khẩu ứng dụng (App Password) để gửi email thật.'
-      };
-    }
-
-    try {
-      const transporter = this.getTransporter(settings);
-      if (!transporter) throw new Error('Chưa cấu hình tài khoản SMTP');
-
-      const fromName = settings.smtp_from_name || 'Quản Lý Phòng Trọ';
-      const fromEmail = settings.smtp_from_email || settings.smtp_user;
-
-      await transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: schedule.member_email,
-        subject,
-        html: htmlContent
-      });
-
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'sent',
-        preview_content: htmlContent
-      });
-
-      return { success: true, mode: 'smtp', message: `Đã gửi lời nhắc nhở ẩn danh tới email của ${schedule.member_name}!` };
-    } catch (err) {
-      EmailLog.create({
-        schedule_id: schedule.id,
-        recipient: schedule.member_email,
-        subject,
-        status: 'failed',
-        error_message: err.message,
-        preview_content: htmlContent
-      });
-      return { success: false, error: err.message };
-    }
+    return await this.dispatchEmail({
+      scheduleId: schedule.id,
+      toEmail: schedule.member_email,
+      toName: schedule.member_name,
+      subject,
+      htmlContent
+    });
   }
 }
 

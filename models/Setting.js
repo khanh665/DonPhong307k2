@@ -14,9 +14,10 @@ class Setting {
     if (process.env.SMTP_HOST) map.smtp_host = process.env.SMTP_HOST;
     if (process.env.SMTP_PORT) map.smtp_port = process.env.SMTP_PORT;
     if (process.env.ROOM_NAME) map.room_name = process.env.ROOM_NAME;
+    if (process.env.BREVO_API_KEY) map.brevo_api_key = process.env.BREVO_API_KEY;
 
-    // Nếu đã có SMTP_USER và SMTP_PASS thì bắt buộc chế độ gửi thật 'smtp'
-    if (map.smtp_user && map.smtp_pass) {
+    // Nếu đã có SMTP_USER và SMTP_PASS hoặc BREVO_API_KEY thì kích hoạt gửi thật
+    if ((map.smtp_user && map.smtp_pass) || map.brevo_api_key) {
       map.email_mode = 'smtp';
     } else if (process.env.EMAIL_MODE) {
       map.email_mode = process.env.EMAIL_MODE;
@@ -30,13 +31,14 @@ class Setting {
   }
 
   static get(key, defaultValue = null) {
+    if (key === 'brevo_api_key' && process.env.BREVO_API_KEY) return process.env.BREVO_API_KEY;
     if (key === 'smtp_user' && process.env.SMTP_USER) return process.env.SMTP_USER;
     if (key === 'smtp_pass' && process.env.SMTP_PASS) return process.env.SMTP_PASS;
     if (key === 'smtp_host' && process.env.SMTP_HOST) return process.env.SMTP_HOST;
     if (key === 'smtp_port' && process.env.SMTP_PORT) return process.env.SMTP_PORT;
     if (key === 'room_name' && process.env.ROOM_NAME) return process.env.ROOM_NAME;
     if (key === 'email_mode') {
-      if (process.env.SMTP_USER && process.env.SMTP_PASS) return 'smtp';
+      if ((process.env.SMTP_USER && process.env.SMTP_PASS) || process.env.BREVO_API_KEY) return 'smtp';
       if (process.env.EMAIL_MODE) return process.env.EMAIL_MODE;
     }
 

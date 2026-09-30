@@ -410,14 +410,27 @@
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label small fw-semibold">Mật khẩu ứng dụng (App Password):</label>
+                  <label class="form-label small fw-semibold">Mật khẩu ứng dụng Gmail (App Password):</label>
                   <input type="password" class="form-control form-control-sm" id="setSmtpPass" placeholder="Nhập 16 ký tự App Password của Google">
-                  <small class="text-muted" style="font-size: 11px;">Mẹo: Bật xác minh 2 bước trong tài khoản Google ➔ Tạo 'Mật khẩu ứng dụng' (App Password).</small>
+                  <small class="text-muted" style="font-size: 11px;">Dành cho máy tính cá nhân hoặc máy chủ cho phép cổng SMTP 587 (Koyeb, VPS).</small>
+                </div>
+
+                <div class="p-2 border rounded bg-light mb-3">
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label class="form-label small fw-bold mb-0 text-primary">
+                      <i class="fas fa-key me-1"></i>Brevo API Key (Khuyên dùng khi chạy trên Render / Cloud):
+                    </label>
+                    <span class="badge bg-success" style="font-size: 10px;">HTTPS Port 443</span>
+                  </div>
+                  <input type="password" class="form-control form-control-sm" id="setBrevoApiKey" placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxx">
+                  <small class="text-muted d-block mt-1" style="font-size: 11px; line-height: 1.4;">
+                    💡 <strong>Render Free chặn cổng SMTP 587</strong>. Nếu bạn nhập Brevo API Key (miễn phí 300 email/ngày tại <a href="https://brevo.com" target="_blank">brevo.com</a>), thư sẽ được gửi qua cổng HTTPS 443 an toàn tuyệt đối, không lo bị chặn!
+                  </small>
                 </div>
 
                 <div class="d-flex gap-2">
                   <button type="submit" class="btn btn-primary flex-fill fw-bold">
-                    <i class="fas fa-save me-1"></i>Lưu cấu hình SMTP
+                    <i class="fas fa-save me-1"></i>Lưu cấu hình Email
                   </button>
                   <button type="button" class="btn btn-outline-info" id="btnTestEmailModal">
                     <i class="fas fa-vial me-1"></i>Gửi thử nghiệm

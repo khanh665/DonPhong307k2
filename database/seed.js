@@ -16,7 +16,8 @@ function seedData() {
     { key: 'smtp_user', value: process.env.SMTP_USER || 'khanhva92@gmail.com', description: 'Tài khoản Gmail/SMTP' },
     { key: 'smtp_pass', value: process.env.SMTP_PASS || '', description: 'Mật khẩu ứng dụng Gmail (App Password)' },
     { key: 'smtp_from_name', value: 'Ban Quản Lý Phòng 307K2 - KTX UTB', description: 'Tên người gửi email' },
-    { key: 'smtp_from_email', value: process.env.SMTP_USER || 'khanhva92@gmail.com', description: 'Email người gửi' }
+    { key: 'smtp_from_email', value: process.env.SMTP_USER || 'khanhva92@gmail.com', description: 'Email người gửi' },
+    { key: 'brevo_api_key', value: process.env.BREVO_API_KEY || '', description: 'API Key Brevo (Gửi qua HTTPS port 443 trên Cloud)' }
   ];
 
   const checkSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');

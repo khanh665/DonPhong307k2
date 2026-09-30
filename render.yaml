@@ -21,3 +21,5 @@ services:
         value: khanhva92@gmail.com
       - key: SMTP_PASS
         sync: false
+      - key: BREVO_API_KEY
+        sync: false

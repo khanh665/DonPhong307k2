@@ -727,6 +727,7 @@ async function loadSettings() {
       document.getElementById('setSmtpPort').value = s.smtp_port || '587';
       document.getElementById('setSmtpUser').value = s.smtp_user || '';
       document.getElementById('setSmtpPass').value = s.smtp_pass || '';
+      document.getElementById('setBrevoApiKey').value = s.brevo_api_key || '';
     }
   } catch (e) {
     showToast('Lỗi tải cài đặt: ' + e.message, 'danger');
@@ -764,16 +765,17 @@ async function handleSaveSmtpSettings(e) {
   const smtp_port = document.getElementById('setSmtpPort').value.trim();
   const smtp_user = document.getElementById('setSmtpUser').value.trim();
   const smtp_pass = document.getElementById('setSmtpPass').value;
+  const brevo_api_key = document.getElementById('setBrevoApiKey').value;
 
   try {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email_mode, smtp_host, smtp_port, smtp_user, smtp_pass })
+      body: JSON.stringify({ email_mode, smtp_host, smtp_port, smtp_user, smtp_pass, brevo_api_key })
     }).then(r => r.json());
 
     if (res.success) {
-      showToast('Đã lưu cấu hình máy chủ SMTP!', 'success');
+      showToast('Đã lưu cấu hình Email thành công!', 'success');
       loadSettings();
     }
   } catch (err) {
